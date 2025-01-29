@@ -1,0 +1,148 @@
+generator client {
+  provider = "go run github.com/steebchen/prisma-client-go"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model activitylog {
+  auditid    BigInt @id @default(autoincrement())
+  msgtype    String
+  msgpayload Json
+  updatedat  BigInt @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+}
+
+model devices {
+  deviceid     String         @id
+  devicemeta   Json
+  createdat    BigInt         @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  createdby    String
+  updatedat    BigInt         @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  updatedby    String
+  groupdevices groupdevices[]
+  orgdevices   orgdevices[]
+}
+
+model groupdevices {
+  orgid     String
+  groupid   String
+  deviceid  String
+  isexist   Boolean
+  updatedat BigInt  @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  updatedby String
+  devices   devices @relation(fields: [deviceid], references: [deviceid], onDelete: NoAction, onUpdate: NoAction)
+  groups    groups  @relation(fields: [groupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+  orgs      orgs    @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([orgid, groupid, deviceid, isexist])
+  @@unique([orgid, groupid, deviceid])
+}
+
+model groups {
+  orgid                                String
+  groupid                              String           @id
+  groupname                            String
+  isdeleted                            Boolean
+  groupmeta                            Json?
+  createdat                            BigInt           @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  createdby                            String
+  updatedat                            BigInt           @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  updatedby                            String
+  groupdevices                         groupdevices[]
+  orgs                                 orgs             @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+  grouptree_grouptree_groupidTogroups  grouptree[]      @relation("grouptree_groupidTogroups")
+  grouptree_grouptree_pgroupidTogroups grouptree[]      @relation("grouptree_pgroupidTogroups")
+  groupuserperms                       groupuserperms[]
+  orgrgroup                            orgrgroup[]
+  usergroup                            usergroup[]
+}
+
+model grouptree {
+  orgid                             String
+  pgroupid                          String
+  groupid                           String
+  name                              String
+  groups_grouptree_groupidTogroups  groups @relation("grouptree_groupidTogroups", fields: [groupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+  orgs                              orgs   @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+  groups_grouptree_pgroupidTogroups groups @relation("grouptree_pgroupidTogroups", fields: [pgroupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([orgid, pgroupid, groupid])
+  @@unique([orgid, pgroupid, name])
+}
+
+model groupuserperms {
+  orgid   String
+  groupid String
+  userid  String
+  permid  String
+  groups  groups @relation(fields: [groupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+  orgs    orgs   @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+  users   users  @relation(fields: [userid], references: [userid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([orgid, groupid, userid, permid])
+}
+
+model orgdevices {
+  orgid         String
+  deviceid      String
+  orgdevicemeta Json
+  updatedat     BigInt  @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  updatedby     String
+  devices       devices @relation(fields: [deviceid], references: [deviceid], onDelete: NoAction, onUpdate: NoAction)
+  orgs          orgs    @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([orgid, deviceid])
+}
+
+model orgrgroup {
+  orgid       String @id
+  rootgroupid String
+  orgs        orgs   @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+  groups      groups @relation(fields: [rootgroupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model orgs {
+  orgid          String           @id
+  orgname        String           @unique
+  orgmeta        Json
+  isenabled      Boolean          @default(true)
+  createdby      String
+  updatedby      String
+  createdat      BigInt           @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  updatedat      BigInt           @default(dbgenerated("((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint"))
+  groupdevices   groupdevices[]
+  groups         groups[]
+  grouptree      grouptree[]
+  groupuserperms groupuserperms[]
+  orgdevices     orgdevices[]
+  orgrgroup      orgrgroup?
+  usergroup      usergroup[]
+}
+
+model usergroup {
+  userid  String
+  orgid   String
+  groupid String
+  groups  groups @relation(fields: [groupid], references: [groupid], onDelete: NoAction, onUpdate: NoAction)
+  orgs    orgs   @relation(fields: [orgid], references: [orgid], onDelete: NoAction, onUpdate: NoAction)
+  users   users  @relation(fields: [userid], references: [userid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([userid, orgid, groupid])
+}
+
+model users {
+  userid          String           @id
+  name            String
+  email           String
+  isemailverified Boolean
+  usermeta        Json?
+  isenabled       Boolean
+  secretprv       String
+  secretpub       String
+  createdat       BigInt
+  updatedat       BigInt
+  groupuserperms  groupuserperms[]
+  usergroup       usergroup[]
+}
